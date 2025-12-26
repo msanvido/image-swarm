@@ -34,7 +34,7 @@
             font-size: 14px;
             font-weight: bold;
         }
-        button, input[type="file"] {
+        button {
             padding: 8px 12px;
             border: none;
             border-radius: 4px;
@@ -46,17 +46,42 @@
         button:hover {
             background: #666;
         }
+        input[type="file"] {
+            display: none;
+        }
         .toggle {
             display: flex;
             align-items: center;
             gap: 8px;
         }
+        .canvas-container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
+        }
         canvas {
             border: 2px solid #555;
             border-radius: 8px;
             background: #000;
+        }
+        #swarmCanvas {
             display: block;
-            margin: 0 auto;
+        }
+        .debug-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .debug-panel h3 {
+            margin: 0;
+            font-size: 14px;
+            color: #aaa;
+        }
+        #debugCanvas {
+            width: 200px;
+            height: 120px;
+            border: 1px solid #555;
         }
         .image-list {
             display: flex;
@@ -66,6 +91,7 @@
         }
         .image-item {
             display: flex;
+            flex-direction: column;
             align-items: center;
             gap: 8px;
             padding: 8px;
@@ -73,9 +99,23 @@
             border-radius: 4px;
             font-size: 12px;
         }
+        .image-item img {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 1px solid #555;
+        }
+        .image-item-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            justify-content: space-between;
+        }
         .remove-btn {
             background: #d44;
-            padding: 2px 6px;
+            padding: 4px 8px;
             font-size: 10px;
         }
         .remove-btn:hover {
@@ -88,8 +128,8 @@
         <h1>Image Swarm Simulation</h1>
         <div class="controls">
             <div class="control-group">
-                <label for="imageUpload">Upload Images:</label>
                 <input type="file" id="imageUpload" multiple accept="image/*">
+                <button id="uploadBtn">Upload Images</button>
             </div>
             <div class="control-group">
                 <div class="toggle">
@@ -101,7 +141,14 @@
                 <button id="resetSwarm">Reset Swarm</button>
             </div>
         </div>
-        <canvas id="swarmCanvas" width="1000" height="600"></canvas>
+        <div class="canvas-container">
+            <canvas id="swarmCanvas" width="1000" height="600"></canvas>
+            <div class="debug-panel">
+                <h3>Debug: Target Pattern</h3>
+                <canvas id="debugCanvas"></canvas>
+                <div id="debugInfo" style="font-size: 11px; color: #888;"></div>
+            </div>
+        </div>
         <div class="image-list" id="imageList"></div>
     </div>
     <script src="swarm.js"></script>
