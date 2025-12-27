@@ -83,7 +83,7 @@ class Particle {
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
                     // Follow swarm master with smooth steering
-                    if (distance > 100) {
+                    //if (distance > 100) {
                         const desiredSpeed = this.maxSpeed;
                         const desiredVx = (dx / distance) * desiredSpeed;
                         const desiredVy = (dy / distance) * desiredSpeed;
@@ -99,7 +99,7 @@ class Particle {
                             this.ax += steerX * 0.5;
                             this.ay += steerY * 0.5;
                         }
-                    }
+                    //}
                 }
             }
         }
