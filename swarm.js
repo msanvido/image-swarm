@@ -1,57 +1,133 @@
 class Particle {
-    constructor(x, y) {
+    constructor(x, y, isSwarmMaster = false) {
         this.x = x;
         this.y = y;
-        this.vx = (Math.random() - 0.5) * 2;
-        this.vy = (Math.random() - 0.5) * 2;
+        // More natural initial velocity with direction
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.5 + Math.random() * 1.0;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        // Acceleration for smooth movement
+        this.ax = 0;
+        this.ay = 0;
         this.targetX = x;
         this.targetY = y;
         this.hasTarget = false;
         this.color = { r: 255, g: 255, b: 255 };
         this.targetColor = { r: 255, g: 255, b: 255 };
+        this.isSwarmMaster = isSwarmMaster;
+        this.swarmMaster = null;
+        // Individual characteristics for variation
+        this.maxSpeed = isSwarmMaster ? 2.0 + Math.random() * 0.5 : 1.2 + Math.random() * 0.6;
+        this.maxForce = 0.05 + Math.random() * 0.02;
+        this.perceptionRadius = 40 + Math.random() * 20;
     }
 
-    update(particles, canvas) {
+    update(particles, canvas, swarmMasters) {
+        // Reset acceleration
+        this.ax = 0;
+        this.ay = 0;
+
         if (this.hasTarget) {
-            // Move towards target position
+            // Move towards target position with smooth steering
             const dx = this.targetX - this.x;
             const dy = this.targetY - this.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
-            
+
             if (distance > 5) {
-                this.vx += dx * 0.01;
-                this.vy += dy * 0.01;
+                // Steer towards target (desired velocity)
+                const desiredSpeed = Math.min(distance * 0.1, this.maxSpeed * 1.5);
+                const desiredVx = (dx / distance) * desiredSpeed;
+                const desiredVy = (dy / distance) * desiredSpeed;
+                
+                // Calculate steering force
+                const steerX = desiredVx - this.vx;
+                const steerY = desiredVy - this.vy;
+                const steerMag = Math.sqrt(steerX * steerX + steerY * steerY);
+                
+                // Limit steering force for smooth turning
+                if (steerMag > this.maxForce * 2) {
+                    this.ax += (steerX / steerMag) * this.maxForce * 2;
+                    this.ay += (steerY / steerMag) * this.maxForce * 2;
+                } else {
+                    this.ax += steerX;
+                    this.ay += steerY;
+                }
             } else {
-                // Close to target, slow down
-                this.vx *= 0.9;
-                this.vy *= 0.9;
+                // Close to target, apply gentle braking
+                this.ax -= this.vx * 0.1;
+                this.ay -= this.vy * 0.1;
             }
         } else {
-            // Apply Boyd's flocking behavior
-            this.flock(particles);
+            // Free swarming behavior with boids algorithm
+            if (this.isSwarmMaster) {
+                // Swarm masters have more exploratory behavior
+                const wanderAngle = Math.random() * Math.PI * 2;
+                const wanderForce = 0.3;
+                this.ax += Math.cos(wanderAngle) * wanderForce;
+                this.ay += Math.sin(wanderAngle) * wanderForce;
+            } else {
+                // Regular particles use boids behavior
+                const boids = this.calculateBoids(particles);
+                this.ax += boids.separation.x * 1.5;
+                this.ay += boids.separation.y * 1.5;
+                this.ax += boids.alignment.x * 1.0;
+                this.ay += boids.alignment.y * 1.0;
+                this.ax += boids.cohesion.x * 0.8;
+                this.ay += boids.cohesion.y * 0.8;
+
+                // Follow swarm master if assigned
+                if (this.swarmMaster) {
+                    const dx = this.swarmMaster.x - this.x;
+                    const dy = this.swarmMaster.y - this.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    // Follow swarm master with smooth steering
+                    if (distance > 100) {
+                        const desiredSpeed = this.maxSpeed;
+                        const desiredVx = (dx / distance) * desiredSpeed;
+                        const desiredVy = (dy / distance) * desiredSpeed;
+                        
+                        const steerX = desiredVx - this.vx;
+                        const steerY = desiredVy - this.vy;
+                        const steerMag = Math.sqrt(steerX * steerX + steerY * steerY);
+                        
+                        if (steerMag > this.maxForce) {
+                            this.ax += (steerX / steerMag) * this.maxForce * 0.5;
+                            this.ay += (steerY / steerMag) * this.maxForce * 0.5;
+                        } else {
+                            this.ax += steerX * 0.5;
+                            this.ay += steerY * 0.5;
+                        }
+                    }
+                }
+            }
         }
 
-        // Apply velocity damping
-        this.vx *= 0.99;
-        this.vy *= 0.99;
+        // Apply acceleration to velocity (smooth movement)
+        this.vx += this.ax;
+        this.vy += this.ay;
+
+        // Natural velocity damping (air resistance)
+        this.vx *= 0.995;
+        this.vy *= 0.995;
 
         // Limit speed
         const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        const maxSpeed = this.hasTarget ? 3 : 2;
-        if (speed > maxSpeed) {
-            this.vx = (this.vx / speed) * maxSpeed;
-            this.vy = (this.vy / speed) * maxSpeed;
+        if (speed > this.maxSpeed) {
+            this.vx = (this.vx / speed) * this.maxSpeed;
+            this.vy = (this.vy / speed) * this.maxSpeed;
         }
 
         // Update position
         this.x += this.vx;
         this.y += this.vy;
 
-        // Wrap around screen boundaries
-        if (this.x < 0) this.x = canvas.width;
-        if (this.x > canvas.width) this.x = 0;
-        if (this.y < 0) this.y = canvas.height;
-        if (this.y > canvas.height) this.y = 0;
+        // Wrap around screen boundaries with smooth transition
+        if (this.x < -10) this.x = canvas.width + 10;
+        if (this.x > canvas.width + 10) this.x = -10;
+        if (this.y < -10) this.y = canvas.height + 10;
+        if (this.y > canvas.height + 10) this.y = -10;
 
         // Interpolate color towards target
         this.color.r += (this.targetColor.r - this.color.r) * 0.1;
@@ -59,17 +135,17 @@ class Particle {
         this.color.b += (this.targetColor.b - this.color.b) * 0.1;
     }
 
-    flock(particles) {
-        // Simplified flocking for performance - only check nearby particles
-        const separationRadius = 25;
-        const separationRadiusSq = separationRadius * separationRadius;
+    calculateBoids(particles) {
+        let separation = { x: 0, y: 0 };
+        let alignment = { x: 0, y: 0 };
+        let cohesion = { x: 0, y: 0 };
+        let separationCount = 0;
+        let neighborCount = 0;
+        const perceptionRadiusSq = this.perceptionRadius * this.perceptionRadius;
 
-        let sepX = 0, sepY = 0;
-        let sepCount = 0;
-
-        // Optimized: only check a sample of particles for performance
-        const sampleSize = Math.min(50, particles.length);
-        const step = Math.floor(particles.length / sampleSize);
+        // Sample particles for performance (check every Nth particle)
+        const sampleSize = Math.min(100, particles.length);
+        const step = Math.max(1, Math.floor(particles.length / sampleSize));
 
         for (let i = 0; i < particles.length; i += step) {
             const other = particles[i];
@@ -79,22 +155,76 @@ class Particle {
             const dy = this.y - other.y;
             const distSq = dx * dx + dy * dy;
 
-            if (distSq > 0 && distSq < separationRadiusSq) {
+            if (distSq > 0 && distSq < perceptionRadiusSq) {
                 const dist = Math.sqrt(distSq);
-                sepX += dx / dist;
-                sepY += dy / dist;
-                sepCount++;
+
+                // Separation: steer away from nearby particles
+                if (dist < this.perceptionRadius * 0.5) {
+                    separation.x += dx / (distSq + 0.1); // Weight by inverse distance
+                    separation.y += dy / (distSq + 0.1);
+                    separationCount++;
+                }
+
+                // Alignment: steer towards average heading of neighbors
+                alignment.x += other.vx;
+                alignment.y += other.vy;
+
+                // Cohesion: steer towards average position of neighbors
+                cohesion.x += other.x;
+                cohesion.y += other.y;
+
+                neighborCount++;
             }
         }
 
-        // Separation
-        if (sepCount > 0) {
-            sepX /= sepCount;
-            sepY /= sepCount;
-            this.vx += sepX * 0.3;
-            this.vy += sepY * 0.3;
+        // Normalize and scale forces
+        if (separationCount > 0) {
+            const mag = Math.sqrt(separation.x * separation.x + separation.y * separation.y);
+            if (mag > 0) {
+                separation.x = (separation.x / mag) * this.maxForce;
+                separation.y = (separation.y / mag) * this.maxForce;
+            }
         }
+
+        if (neighborCount > 0) {
+            // Alignment: average velocity of neighbors
+            alignment.x /= neighborCount;
+            alignment.y /= neighborCount;
+            const alignMag = Math.sqrt(alignment.x * alignment.x + alignment.y * alignment.y);
+            if (alignMag > 0) {
+                alignment.x = (alignment.x / alignMag) * this.maxSpeed;
+                alignment.y = (alignment.y / alignMag) * this.maxSpeed;
+                alignment.x -= this.vx;
+                alignment.y -= this.vy;
+                const steerMag = Math.sqrt(alignment.x * alignment.x + alignment.y * alignment.y);
+                if (steerMag > this.maxForce) {
+                    alignment.x = (alignment.x / steerMag) * this.maxForce;
+                    alignment.y = (alignment.y / steerMag) * this.maxForce;
+                }
+            }
+
+            // Cohesion: steer towards center of mass
+            cohesion.x /= neighborCount;
+            cohesion.y /= neighborCount;
+            cohesion.x -= this.x;
+            cohesion.y -= this.y;
+            const cohMag = Math.sqrt(cohesion.x * cohesion.x + cohesion.y * cohesion.y);
+            if (cohMag > 0) {
+                cohesion.x = (cohesion.x / cohMag) * this.maxSpeed;
+                cohesion.y = (cohesion.y / cohMag) * this.maxSpeed;
+                cohesion.x -= this.vx;
+                cohesion.y -= this.vy;
+                const steerMag = Math.sqrt(cohesion.x * cohesion.x + cohesion.y * cohesion.y);
+                if (steerMag > this.maxForce) {
+                    cohesion.x = (cohesion.x / steerMag) * this.maxForce;
+                    cohesion.y = (cohesion.y / steerMag) * this.maxForce;
+                }
+            }
+        }
+
+        return { separation, alignment, cohesion };
     }
+
 
     draw(imageData, canvasWidth) {
         // Draw as a single pixel
@@ -116,6 +246,7 @@ class SwarmSimulation {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.particles = [];
+        this.swarmMasters = [];
         this.images = [];
         this.currentImageIndex = 0;
         this.formingImage = false;
@@ -129,18 +260,36 @@ class SwarmSimulation {
     }
 
     init() {
-        // Create initial particles
-        for (let i = 0; i < 40000; i++) {
+        const numSwarmMasters = 10;
+        const numParticles = 40000;
+
+        // Create swarm masters
+        for (let i = 0; i < numSwarmMasters; i++) {
             const x = Math.random() * this.canvas.width;
             const y = Math.random() * this.canvas.height;
-            this.particles.push(new Particle(x, y));
+            const master = new Particle(x, y, true);
+            this.swarmMasters.push(master);
+            this.particles.push(master);
+        }
+
+        // Create regular particles and assign them to swarm masters
+        for (let i = numSwarmMasters; i < numParticles; i++) {
+            const x = Math.random() * this.canvas.width;
+            const y = Math.random() * this.canvas.height;
+            const particle = new Particle(x, y, false);
+
+            // Assign to a random swarm master
+            particle.swarmMaster = this.swarmMasters[i % numSwarmMasters];
+            this.particles.push(particle);
         }
 
         this.animate();
     }
 
     addImage(imageData, name) {
-        this.images.push({ data: imageData, name: name });
+        // Process the image once and store the target pixels
+        const targetPixels = this.processImage(imageData);
+        this.images.push({ data: imageData, name: name, targetPixels: targetPixels });
         this.updateImageList();
     }
 
@@ -228,11 +377,6 @@ class SwarmSimulation {
             grayscaleData.data[i + 3] = alpha;
         }
 
-        // Display grayscale image in debug canvas
-        this.debugCanvas.width = scaledWidth;
-        this.debugCanvas.height = scaledHeight;
-        this.debugCtx.putImageData(grayscaleData, 0, 0);
-
         const pixels = [];
 
         // Calculate offset to center image on main canvas
@@ -269,6 +413,20 @@ class SwarmSimulation {
             }
         }
 
+        // Display target pixels on debug canvas
+        this.debugCanvas.width = scaledWidth;
+        this.debugCanvas.height = scaledHeight;
+        this.debugCtx.fillStyle = '#000';
+        this.debugCtx.fillRect(0, 0, scaledWidth, scaledHeight);
+
+        // Draw each target pixel as a white dot
+        this.debugCtx.fillStyle = '#fff';
+        for (let i = 0; i < pixels.length; i++) {
+            const px = pixels[i].x - offsetX;
+            const py = pixels[i].y - offsetY;
+            this.debugCtx.fillRect(Math.floor(px), Math.floor(py), 1, 1);
+        }
+
         // Update debug info
         document.getElementById('debugInfo').textContent = `Target points: ${pixels.length}`;
 
@@ -279,7 +437,8 @@ class SwarmSimulation {
         if (this.images.length === 0) return;
 
         const currentImage = this.images[this.currentImageIndex];
-        this.targetPixels = this.processImage(currentImage.data);
+        // Use pre-computed target pixels instead of recomputing
+        this.targetPixels = currentImage.targetPixels;
 
         // Assign targets to ALL particles by distributing them across available target pixels
         for (let i = 0; i < this.particles.length; i++) {
@@ -305,19 +464,19 @@ class SwarmSimulation {
     update() {
         // Check if we should start forming an image
         if (!this.formingImage && this.images.length > 0) {
-            if (Math.random() < 0.005) { // Random chance to start forming
+            if (Math.random() < 0.002) { // Reduced probability for longer gaps between images
                 this.formImage();
             }
         }
-        
+
         // Check if we should stop forming and return to swarming
-        if (this.formingImage && Date.now() - this.imageFormTime > 3000) { // Form for 3 seconds
+        if (this.formingImage && Date.now() - this.imageFormTime > 5000) { // Form for 5 seconds
             this.particles.forEach(particle => {
                 particle.hasTarget = false;
                 particle.targetColor = { r: 255, g: 255, b: 255 };
             });
             this.formingImage = false;
-            
+
             // Move to next image
             if (this.images.length > 1) {
                 this.currentImageIndex = (this.currentImageIndex + 1) % this.images.length;
@@ -326,7 +485,7 @@ class SwarmSimulation {
         
         // Update particles - use for loop for better performance
         for (let i = 0; i < this.particles.length; i++) {
-            this.particles[i].update(this.particles, this.canvas);
+            this.particles[i].update(this.particles, this.canvas, this.swarmMasters);
         }
     }
 
@@ -364,8 +523,13 @@ class SwarmSimulation {
         this.particles.forEach(particle => {
             particle.hasTarget = false;
             particle.targetColor = { r: 255, g: 255, b: 255 };
-            particle.vx = (Math.random() - 0.5) * 2;
-            particle.vy = (Math.random() - 0.5) * 2;
+            // Reset with natural initial velocity
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 0.5 + Math.random() * 1.0;
+            particle.vx = Math.cos(angle) * speed;
+            particle.vy = Math.sin(angle) * speed;
+            particle.ax = 0;
+            particle.ay = 0;
         });
         this.formingImage = false;
     }
