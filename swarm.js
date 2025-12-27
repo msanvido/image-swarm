@@ -83,7 +83,7 @@ class Particle {
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
                     // Follow swarm master with smooth steering
-                    //if (distance > 100) {
+                    if (distance > 5) {
                         const desiredSpeed = this.maxSpeed;
                         const desiredVx = (dx / distance) * desiredSpeed;
                         const desiredVy = (dy / distance) * desiredSpeed;
@@ -99,7 +99,7 @@ class Particle {
                             this.ax += steerX * 0.5;
                             this.ay += steerY * 0.5;
                         }
-                    //}
+                    }
                 }
             }
         }
@@ -151,6 +151,9 @@ class Particle {
             const other = particles[i];
             if (other === this) continue;
 
+            // Skip separation for swarm master - allow particles to get close
+            const isSwarmMaster = (this.swarmMaster && other === this.swarmMaster);
+
             const dx = this.x - other.x;
             const dy = this.y - other.y;
             const distSq = dx * dx + dy * dy;
@@ -158,8 +161,8 @@ class Particle {
             if (distSq > 0 && distSq < perceptionRadiusSq) {
                 const dist = Math.sqrt(distSq);
 
-                // Separation: steer away from nearby particles
-                if (dist < this.perceptionRadius * 0.5) {
+                // Separation: steer away from nearby particles (but not from swarm master)
+                if (dist < this.perceptionRadius * 0.5 && !isSwarmMaster) {
                     separation.x += dx / (distSq + 0.1); // Weight by inverse distance
                     separation.y += dy / (distSq + 0.1);
                     separationCount++;
